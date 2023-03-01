@@ -47,7 +47,7 @@ def str_input(hint, min_length=1) -> str:
     return v
 
 
-def create_row_formatter(columns: list[tuple[int, int]], delimeter='') -> Callable[[list], str]:
+def create_row_formatter(columns: list[tuple[int, int]], delimeter='', wrap=False) -> Callable[[list], str]:
     """Create a formatter for rows in a table,
     each column is defined by a tuple of (width, left_padding)
     """
@@ -58,5 +58,8 @@ def create_row_formatter(columns: list[tuple[int, int]], delimeter='') -> Callab
             width, left_padding = columns[i]
             text = f'{" " * left_padding}{v}'.ljust(width)
             l.append(text)
-        return delimeter.join(l)
+        row = delimeter.join(l)
+        if wrap:
+            row = delimeter + row + delimeter
+        return row
     return formatter
