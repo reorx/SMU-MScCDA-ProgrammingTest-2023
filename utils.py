@@ -33,6 +33,8 @@ def number_input(hint, number_type: Type[N], min=None) -> N:
             continue
         if min is not None and v < min:
             print(f'Please input a number that is greater than or equal to {min}')
+            # reset
+            v = None
             continue
     return v
 
@@ -43,6 +45,8 @@ def str_input(hint, min_length=1) -> str:
         v = colored_input(hint).strip()
         if len(v) < min_length:
             print(f'Please input a string that is at least {min_length} characters long')
+            # reset
+            v = ''
             continue
     return v
 
