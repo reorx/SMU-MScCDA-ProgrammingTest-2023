@@ -1,4 +1,4 @@
-from typing import TypeVar, Type, Callable
+from typing import TypeVar, Type, Callable, Iterator
 
 
 def esc(*codes: int) -> str:
@@ -51,7 +51,7 @@ def create_row_formatter(columns: list[tuple[int, int]], delimeter='', wrap=Fals
     """Create a formatter for rows in a table,
     each column is defined by a tuple of (width, left_padding)
     """
-    def formatter(values: list):
+    def formatter(values: Iterator):
         l = []
         length = len(values)
         for i, v in enumerate(values):

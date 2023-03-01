@@ -1,109 +1,86 @@
 import csv
 import io
-from dataclasses import dataclass
 from utils import create_row_formatter
-from typing import Callable, Optional
+from typing import Callable, Any
 
 
-@dataclass
-class EmployeeInfo:
-    id: str
-    employee_name: str
-    department: str
+class BaseTable:
+    columns: list[str]
+    row_map: dict[Any, tuple]
+    rows: list[tuple]
+    column_formatter_map: dict[int, Callable] = {}
+
+    def __init__(self) -> None:
+        self.row_map = {}
+        self.rows = []
+
+    def add_row(self, row_id, row: tuple):
+        """Idempotently add a row, if row_id is in row_map, do nothing"""
+        if row_id in self.row_map:
+            return
+        self.row_map[row_id] = row
+        self.rows.append(row)
+    
+    def format_columns_in_row(self, row: tuple):
+        new_row = []
+        for index, value in enumerate(row):
+            if index in self.column_formatter_map:
+                value = self.column_formatter_map[index](value)
+            new_row.append(value)
+        return new_row
+    
+    def print(self):
+        column_max_width_map = dict((index, len(name) + 2) for index, name in enumerate(self.columns))
+
+        # loop rows to update max width of each column
+        for row in self.rows:
+            for index, value in enumerate(row):
+                width = len(str(value)) + 2
+                if width > column_max_width_map[index]:
+                    column_max_width_map[index] = width
+
+        # create the formatter for each row
+        format_row = create_row_formatter(
+            [(column_max_width_map[index], 1) for index, _ in enumerate(self.columns)], '|', True)
+
+        # draw header and separator of rows
+        separator_row = '+' + '+'.join(column_max_width_map[index] * '-' for index, _ in enumerate(self.columns)) + '+'
+
+        buf = []
+        buf.append(separator_row)
+        buf.append(format_row(self.columns))
+        buf.append(separator_row)
+
+        for row in self.rows:
+            buf.append(format_row(self.format_columns_in_row(row)))
+
+        buf.append(separator_row)
+        print('\n'.join(buf))
 
 
-@dataclass
-class EmployeeAnnualVacations:
-    id: str
-    employee_id: str
-    year: int
-    vacation_days: int
+class EmployeeInfoTable(BaseTable):
+    columns = ['Employee Id', 'Employee Name', 'Department']
 
 
-def print_table(columns: list[tuple[str, str, Optional[Callable]]], items: list):
-    """
-    column is defined by a tuple of (name, attribute, formatter)
-    """
+class EmployeeVacationsTable(BaseTable):
+    columns = ['Employee ID', 'Year', 'Vacation Days']
 
-    column_max_width_map = dict((attr, len(name) + 2) for name, attr, _ in columns)
-
-    # create rows (list of values) from items (list of objects)
-    rows = []
-    for item in items:
-        row = []
-        for _, attr, formatter in columns:
-            v = str(getattr(item, attr))
-            # update max width of the column
-            width = len(v) + 2
-            if width > column_max_width_map[attr]:
-                column_max_width_map[attr] = width
-
-            # append the value to the row
-            if formatter is not None:
-                v = formatter(v)
-            row.append(v)
-        rows.append(row)
-
-    # create the formatter for each row
-    row_formatter = create_row_formatter(
-        [(column_max_width_map[attr], 1) for _, attr, _ in columns], '|', True)
-
-    # draw header and separator of rows
-    separator_row = '+' + '+'.join(column_max_width_map[attr] * '-' for _, attr, _ in columns) + '+'
-
-    buf = []
-    buf.append(separator_row)
-    buf.append(row_formatter([name for name, _, _ in columns]))
-    buf.append(separator_row)
-
-    for row in rows:
-        buf.append(row_formatter(row))
-
-    buf.append(separator_row)
-    print('\n'.join(buf))
+    column_formatter_map = {
+        # add spaces to the left of the value of 'Vacation Days' column
+        2: lambda s: 7 * ' ' + str(s),
+    }
 
 
+class EmployeeTotalVacationsTable(BaseTable):
+    columns = ['Employee ID', 'Employee Name', 'Department', 'Year', 'Vacation Days']
 
-def main(file):
-    reader = csv.reader(file)
-    # skip first line
-    next(reader)
-
-    employee_info_table = {}
-    employee_annual_vacations_table = {}
-
-    for row in reader:
-        employee_id, employee_name, department, _year, _vacation_days = tuple(row)
-        # convert year and vacation_days to int
-        year = int(_year)
-        vacation_days = int(_vacation_days)
-
-        if employee_id not in employee_info_table:
-            employee_info_table[employee_id] = EmployeeInfo(employee_id, employee_name, department)
-
-        if employee_id not in employee_annual_vacations_table:
-            new_id = len(employee_annual_vacations_table) + 1
-            employee_annual_vacations_table[new_id] = EmployeeAnnualVacations(new_id, employee_id, year, vacation_days)
-
-    print('2NF Table: Employee Info')
-    print_table([
-        ('Employee Id', 'id', None),
-        ('Employee Name', 'employee_name', None),
-        ('Department', 'department', None),
-    ], employee_info_table.values())
-    print()
-
-    print('2NF Table: Employee Annual Vacations')
-    print_table([
-        ('Id', 'id', None),
-        ('Employee Id', 'employee_id', None),
-        ('Year', 'year', None),
-        ('Vacation Days', 'vacation_days', lambda s: 7 * ' ' + s),
-    ], employee_annual_vacations_table.values())
+    column_formatter_map = {
+        # add spaces to the left of the value of 'Vacation Days' column
+        4: lambda s: 7 * ' ' + str(s),
+    }
 
 
-
-if __name__ == '__main__':
+def main():
     csv_data  = """\
 "Employee Id","Employee Name","Department","Year","Vacation Days"
 00012,"Luke Ye",Sales,2011,6
@@ -121,4 +98,54 @@ if __name__ == '__main__':
 00014,"John Smith",Management,2011,3
 00015,"Mark Brown",Marketing,2014,2"""
 
-    main(io.StringIO(csv_data))
+    reader = csv.reader(io.StringIO(csv_data))
+    # skip first line
+    next(reader)
+
+    employee_info_table = EmployeeInfoTable()
+    employee_vacations_table = EmployeeVacationsTable()
+
+    for row in reader:
+        employee_id, employee_name, department, _year, _vacation_days = tuple(row)
+        # convert year and vacation_days to int
+        year = int(_year)
+        vacation_days = int(_vacation_days)
+
+        employee_info_table.add_row(employee_id, [employee_id, employee_name, department])
+
+        new_id = len(employee_vacations_table.row_map) + 1
+        employee_vacations_table.add_row(new_id, [employee_id, year, vacation_days])
+
+    print('2NF Table: Employee Info')
+    employee_info_table.print()
+    print()
+
+    print('2NF Table: Employee Annual Vacations')
+    employee_vacations_table.print()
+    print()
+
+    # calculate (employee_id, year) total vacation days
+    employ_total_vacations_counter = {}
+    for row in employee_vacations_table.rows:
+        employee_id, year, vacation_days = row
+        key = (employee_id, year)
+        if key not in employ_total_vacations_counter:
+            employ_total_vacations_counter[key] = 0
+        employ_total_vacations_counter[key] += vacation_days
+    
+    # add rows to EmployeeTotalVacationsTable
+    employ_total_vacations_table = EmployeeTotalVacationsTable()
+    for key, total_vacations in employ_total_vacations_counter.items():
+        employee_id, year = key
+        _, employee_name, department = employee_info_table.row_map[employee_id]
+        employ_total_vacations_table.add_row(key, [employee_id, employee_name, department, year, total_vacations])
+
+    # sort by employee_name (column 1) and year (column 3)
+    employ_total_vacations_table.rows.sort(key=lambda x: (x[1], x[3]))
+
+    print('Total vacation days per year for each employee:')
+    employ_total_vacations_table.print()
+
+
+if __name__ == '__main__':
+    main()
