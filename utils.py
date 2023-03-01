@@ -56,10 +56,7 @@ def create_row_formatter(columns: list[tuple[int, int]], delimeter='') -> Callab
         length = len(values)
         for i, v in enumerate(values):
             width, left_padding = columns[i]
-            text = f'{" " * left_padding}{v}'
-            # all text except the last one should be padded to the right
-            if i < length - 1:
-                text = text.ljust(width)
+            text = f'{" " * left_padding}{v}'.ljust(width)
             l.append(text)
         return delimeter.join(l)
     return formatter
